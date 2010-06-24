@@ -25,4 +25,4 @@ Requires `py-amqplib` installed.
 
 Example:
 
-    ./check_amqp --server amqp.host --queue messages --warn 1000 --critical 10000
+    ./check_amqp.py --server amqp.host --queue messages --warn 1000 --critical 10000
