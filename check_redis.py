@@ -15,42 +15,31 @@ EXIT_NAGIOS_CRITICAL = 2
 # Command line options
 opt_parser = OptionParser()
 opt_parser.add_option("-s", "--server", dest="server", help="Redis server to connect to.")
-opt_parser.add_option("-p", "--port", dest="port", help="Redis port to connect to. (Default: 6379)")
+opt_parser.add_option("-p", "--port", dest="port", default=6379, help="Redis port to connect to. (Default: 6379)")
 opt_parser.add_option("-w", "--warn", dest="warn_threshold", help="Memory utlization (in MB) that triggers a warning status.")
 opt_parser.add_option("-c", "--critical", dest="critical_threshold", help="Memory utlization (in MB) that triggers a critical status.")
-
+opt_parser.add_option("-r", "--rss-warn", dest="rss_warn", help="RSS memory (in MB) that triggers a warning status.")
+opt_parser.add_option("-R", "--rss-critical", dest="rss_critical", help="RSS memory (in MB) that triggers a critical status.")
 args = opt_parser.parse_args()[0]
+
 
 if args.server == None:
   print "A Redis server (--server) must be supplied. Please see --help for more details."
   sys.exit(-1)
 
-if args.port == None:
-  args.port = 6379
-
-if args.warn_threshold == None:
-  print "A warning threshold (--warn) must be supplied. Please see --help for more details."
-  sys.exit(-1)
-
-try:
-  warn_threshold = int(args.warn_threshold)
-  if warn_threshold < 0:
-    raise ValueError
-except ValueError, e:
-  print "Warning threshold (--warn) must be a positive integer. Please see --help for more details."
-  sys.exit(-1)
-
-if args.critical_threshold == None:
-  print "A critical threshold (--critical) must be supplied. Please see --help for more details."
-  sys.exit(-1)
-
-try:
-  critical_threshold = int(args.critical_threshold)
-  if critical_threshold < 0:
-    raise ValueError
-except ValueError, e:
-  print "Critical threshold (--critical) must be a positive integer. Please see --help for more details."
-  sys.exit(-1)
+args_dict = args.__dict__
+for option in ["warn_threshold", "critical_threshold", "rss_warn", "rss_critical"]:
+    if args_dict[option] == None:
+        print "A %s %s must be supplied. Please see --help for more details." % tuple(option.split("_"))
+        sys.exit(-1)
+        
+    try:
+      value = (args.__dict__[option])
+      if value < 0: raise ValueError
+      else: globals()[option] = int(value)
+    except ValueError, e:
+      print  "A %s %s must be a positive integer. Please see --help for more details." % tuple(option.split("_"))
+      sys.exit(-1)
 
 # ================
 # = Nagios check =
@@ -75,18 +64,32 @@ if redis_info.get("vm_conf_pages", None) != None and redis_info.get("vm_stats_us
       sys.exit(EXIT_NAGIOS_CRITICAL)
 
 # Redis memory usage
+
 if redis_info["used_memory"] / 1024 / 1024 >= critical_threshold:
   print "CRITICAL: Redis is using %dMB of RAM." % (redis_info["used_memory"] / 1024 / 1024)
   sys.exit(EXIT_NAGIOS_CRITICAL)
 elif redis_info["used_memory"] / 1024 / 1024 >= warn_threshold:
   print "WARN: Redis is using %dMB of RAM." % (redis_info["used_memory"] / 1024 / 1024)
   sys.exit(EXIT_NAGIOS_WARN)
-else:
-  print "OK: Redis is using %dMB of RAM. Days Up: %s Clients: %s Version: %s" % \
-  ( \
-    redis_info["used_memory"] / 1024 / 1024,
-    redis_info["uptime_in_days"],
-    redis_info["connected_clients"],
-    redis_info["redis_version"]
-  )
-  sys.exit(EXIT_NAGIOS_OK)
+
+# RSS memory usage 
+
+rss = int(open('/proc/%d/status' % redis_info["process_id"]).read().split('\n')[15].split()[1]) / 1024
+
+if rss >= rss_critical:
+    print "CRITICAL: Redis is using %dMB of RAM (RSS)" % rss
+    sys.exit(EXIT_NAGIOS_CRITICAL)
+if rss  >= rss_warn:
+    print "WARN: Redis is using %d MB of RAM (RSS)" % rss
+    sys.exit(EXIT_NAGIOS_WARN)
+
+
+print "OK: Redis is using %dMB of RAM (%s RSS). Days Up: %s Clients: %s Version: %s" % \
+( \
+redis_info["used_memory"] / 1024 / 1024,
+rss,
+redis_info["uptime_in_days"],
+redis_info["connected_clients"],
+redis_info["redis_version"]
+)
+sys.exit(EXIT_NAGIOS_OK)
