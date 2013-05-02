@@ -18,8 +18,9 @@ opt_parser.add_option("-s", "--server", dest="server", help="Redis server to con
 opt_parser.add_option("-p", "--port", dest="port", default=6379, help="Redis port to connect to. (Default: 6379)")
 opt_parser.add_option("-w", "--warn", dest="warn_threshold", help="Memory utlization (in MB) that triggers a warning status.")
 opt_parser.add_option("-c", "--critical", dest="critical_threshold", help="Memory utlization (in MB) that triggers a critical status.")
-opt_parser.add_option("-r", "--rss-warn", dest="rss_warn", help="RSS memory (in MB) that triggers a warning status.")
-opt_parser.add_option("-R", "--rss-critical", dest="rss_critical", help="RSS memory (in MB) that triggers a critical status.")
+opt_parser.add_option("-r", "--rss-warn", dest="rss_warn", default=None, help="RSS memory (in MB) that triggers a warning status.")
+opt_parser.add_option("-R", "--rss-critical", dest="rss_critical", default=None, help="RSS memory (in MB) that triggers a critical status.")
+opt_parser.add_option("-L", "--force-local", dest="force_local", action="store_true", help="Force local checks even if not localhost.")
 args = opt_parser.parse_args()[0]
 
 
@@ -27,8 +28,17 @@ if args.server == None:
   print "A Redis server (--server) must be supplied. Please see --help for more details."
   sys.exit(-1)
 
+# can't check /proc unless on local
+# (local routable IP addresses not accounted for)
+is_local = args.force_local or (args.server in ['127.0.0.1','localhost','::1'])
+
+# only check RSS
+check_fields = ["warn_threshold", "critical_threshold"]
+if is_local:
+  check_fields += ["rss_warn", "rss_critical"]
+
 args_dict = args.__dict__
-for option in ["warn_threshold", "critical_threshold", "rss_warn", "rss_critical"]:
+for option in check_fields:
     if args_dict[option] == None:
         print "A %s %s must be supplied. Please see --help for more details." % tuple(option.split("_"))
         sys.exit(-1)
@@ -73,23 +83,36 @@ elif redis_info["used_memory"] / 1024 / 1024 >= warn_threshold:
   sys.exit(EXIT_NAGIOS_WARN)
 
 # RSS memory usage 
+if is_local:
+  try:
+    pid = redis_info["process_id"]
+    rss = int(open('/proc/%d/status' % pid)).read().split('\n')[15].split()[1] / 1024
+  except IOError, e:
+    print "CRITICAL: can't open /proc/%d/status" % pid
+    sys.exit(EXIT_NAGIOS_CRITICAL)
 
-rss = int(open('/proc/%d/status' % redis_info["process_id"]).read().split('\n')[15].split()[1]) / 1024
-
-if rss >= rss_critical:
+  if rss >= rss_critical:
     print "CRITICAL: Redis is using %dMB of RAM (RSS)" % rss
     sys.exit(EXIT_NAGIOS_CRITICAL)
-if rss  >= rss_warn:
+  if rss  >= rss_warn:
     print "WARN: Redis is using %d MB of RAM (RSS)" % rss
     sys.exit(EXIT_NAGIOS_WARN)
 
+  print "OK: Redis is using %dMB of RAM (%s RSS). Days Up: %s Clients: %s Version: %s" % \
+    ( \
+    redis_info["used_memory"] / 1024 / 1024,
+    rss,
+    redis_info["uptime_in_days"],
+    redis_info["connected_clients"],
+    redis_info["redis_version"]
+    )
+else:
+  print "OK: Redis is using %dMB of RAM. Days Up: %s Clients: %s Version: %s" % \
+    ( \
+    redis_info["used_memory"] / 1024 / 1024,
+    redis_info["uptime_in_days"],
+    redis_info["connected_clients"],
+    redis_info["redis_version"]
+    )
 
-print "OK: Redis is using %dMB of RAM (%s RSS). Days Up: %s Clients: %s Version: %s" % \
-( \
-redis_info["used_memory"] / 1024 / 1024,
-rss,
-redis_info["uptime_in_days"],
-redis_info["connected_clients"],
-redis_info["redis_version"]
-)
 sys.exit(EXIT_NAGIOS_OK)
