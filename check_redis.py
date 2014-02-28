@@ -16,6 +16,7 @@ EXIT_NAGIOS_CRITICAL = 2
 opt_parser = OptionParser()
 opt_parser.add_option("-s", "--server", dest="server", help="Redis server to connect to.")
 opt_parser.add_option("-p", "--port", dest="port", default=6379, help="Redis port to connect to. (Default: 6379)")
+opt_parser.add_option("-P", "--password", dest="password", default=None, help="Redis password to use. Defaults to unauthenticated.")
 opt_parser.add_option("-w", "--warn", dest="warn_threshold", help="Memory utlization (in MB) that triggers a warning status.")
 opt_parser.add_option("-c", "--critical", dest="critical_threshold", help="Memory utlization (in MB) that triggers a critical status.")
 opt_parser.add_option("-r", "--rss-warn", dest="rss_warn", default=None, help="RSS memory (in MB) that triggers a warning status.")
@@ -57,9 +58,12 @@ for option in check_fields:
 
 # Connection
 try:
-  redis_connection = redis.Redis(host=args.server, port=int(args.port))
+  if args.password is not None:
+    redis_connection = redis.Redis(host=args.server, port=int(args.port), password=args.password)
+  else:
+    redis_connection = redis.Redis(host=args.server, port=int(args.port))
   redis_info = redis_connection.info()
-except (socket.error, redis.exceptions.ConnectionError), e:
+except (socket.error, redis.exceptions.ConnectionError, redis.exceptions.ResponseError), e:
   print "CRITICAL: Problem establishing connection to Redis server %s: %s " % (str(args.server), str(repr(e)))
   sys.exit(EXIT_NAGIOS_CRITICAL)
 
