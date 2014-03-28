@@ -90,7 +90,7 @@ elif redis_info["used_memory"] / 1024 / 1024 >= warn_threshold:
 if is_local:
   try:
     pid = redis_info["process_id"]
-    rss = int(open('/proc/%d/status' % pid)).read().split('\n')[15].split()[1] / 1024
+    rss = int(open('/proc/%d/status' % pid).read().split('\n')[15].split()[1]) / 1024
   except IOError, e:
     print "CRITICAL: can't open /proc/%d/status" % pid
     sys.exit(EXIT_NAGIOS_CRITICAL)
