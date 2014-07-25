@@ -43,7 +43,7 @@ for option in check_fields:
     if args_dict[option] == None:
         print "A %s %s must be supplied. Please see --help for more details." % tuple(option.split("_"))
         sys.exit(-1)
-        
+
     try:
       value = (args.__dict__[option])
       if value < 0: raise ValueError
@@ -59,9 +59,9 @@ for option in check_fields:
 # Connection
 try:
   if args.password is not None:
-    redis_connection = redis.Redis(host=args.server, port=int(args.port), password=args.password)
+    redis_connection = redis.Redis(host=args.server, port=int(args.port), password=args.password, socket_timeout=10)
   else:
-    redis_connection = redis.Redis(host=args.server, port=int(args.port))
+    redis_connection = redis.Redis(host=args.server, port=int(args.port), socket_timeout=10)
   redis_info = redis_connection.info()
 except (socket.error, redis.exceptions.ConnectionError, redis.exceptions.ResponseError), e:
   print "CRITICAL: Problem establishing connection to Redis server %s: %s " % (str(args.server), str(repr(e)))
@@ -86,7 +86,7 @@ elif redis_info["used_memory"] / 1024 / 1024 >= warn_threshold:
   print "WARN: Redis is using %dMB of RAM." % (redis_info["used_memory"] / 1024 / 1024)
   sys.exit(EXIT_NAGIOS_WARN)
 
-# RSS memory usage 
+# RSS memory usage
 if is_local:
   try:
     pid = redis_info["process_id"]
