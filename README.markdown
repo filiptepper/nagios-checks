@@ -8,7 +8,7 @@ Redis
 
 Checks whether host is up and responding and checks for memory usage.
 
-Requires `redis-py` installed.
+Requires [redis-py][1] which is available via PIP: `pip install redis`
 
 Example:
 
@@ -26,3 +26,5 @@ Requires `py-amqplib` installed.
 Example:
 
     ./check_amqp.py --server amqp.host --queue messages --warn 1000 --critical 10000
+
+  [1]: https://github.com/andymccurdy/redis-py
