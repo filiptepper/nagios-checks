@@ -17,6 +17,7 @@ opt_parser = OptionParser()
 opt_parser.add_option("-s", "--server", dest="server", help="Redis server to connect to.")
 opt_parser.add_option("-p", "--port", dest="port", default=6379, help="Redis port to connect to. (Default: 6379)")
 opt_parser.add_option("-P", "--password", dest="password", default=None, help="Redis password to use. Defaults to unauthenticated.")
+opt_parser.add_option("-S", "--ssl", dest="ssl", default=False, help="Enable secure communication. (Default: False)")
 opt_parser.add_option("-w", "--warn", dest="warn_threshold", help="Memory utlization (in MB) that triggers a warning status.")
 opt_parser.add_option("-c", "--critical", dest="critical_threshold", help="Memory utlization (in MB) that triggers a critical status.")
 opt_parser.add_option("-r", "--rss-warn", dest="rss_warn", default=None, help="RSS memory (in MB) that triggers a warning status.")
@@ -60,9 +61,9 @@ for option in check_fields:
 # Connection
 try:
   if args.password is not None:
-    redis_connection = redis.Redis(host=args.server, port=int(args.port), password=args.password, socket_timeout=args.timeout)
+    redis_connection = redis.Redis(host=args.server, port=int(args.port), password=args.password, socket_timeout=args.timeout, ssl=args.ssl)
   else:
-    redis_connection = redis.Redis(host=args.server, port=int(args.port), socket_timeout=args.timeout)
+    redis_connection = redis.Redis(host=args.server, port=int(args.port), socket_timeout=args.timeout, ssl=args.ssl)
   redis_info = redis_connection.info()
 except (socket.error, redis.exceptions.ConnectionError, redis.exceptions.ResponseError), e:
   print "CRITICAL: Problem establishing connection to Redis server %s: %s " % (str(args.server), str(repr(e)))
@@ -86,6 +87,10 @@ if redis_info["used_memory"] / 1024 / 1024 >= critical_threshold:
 elif redis_info["used_memory"] / 1024 / 1024 >= warn_threshold:
   print "WARN: Redis is using %dMB of RAM." % (redis_info["used_memory"] / 1024 / 1024)
   sys.exit(EXIT_NAGIOS_WARN)
+
+# Redis uptime not available on Azure
+if redis_info.get("uptime_in_days") is None:
+    redis_info["uptime_in_days"] = 'unknown'
 
 # RSS memory usage
 if is_local:
