@@ -15,6 +15,7 @@ EXIT_NAGIOS_CRITICAL = 2
 # Command line options
 opt_parser = OptionParser()
 opt_parser.add_option("-s", "--server", dest="server", help="Redis server to connect to.")
+opt_parser.add_option("-u", "--unixsocket", dest="unixsocket", help="Redis server to connect with unix socket.")
 opt_parser.add_option("-p", "--port", dest="port", default=6379, help="Redis port to connect to. (Default: 6379)")
 opt_parser.add_option("-P", "--password", dest="password", default=None, help="Redis password to use. Defaults to unauthenticated.")
 opt_parser.add_option("-S", "--ssl", dest="ssl", default=False, action="store_true", help="Enable secure communication. (Default: False)")
@@ -27,13 +28,13 @@ opt_parser.add_option("-t", "--timeout", dest="timeout", default=10, type=int, h
 args = opt_parser.parse_args()[0]
 
 
-if args.server == None:
-  print "A Redis server (--server) must be supplied. Please see --help for more details."
+if args.server == None and args.unixsocket == None:
+  print "A Redis server (--server or --unixsocket) must be supplied. Please see --help for more details."
   sys.exit(-1)
 
 # can't check /proc unless on local
 # (local routable IP addresses not accounted for)
-is_local = args.force_local or (args.server in ['127.0.0.1','localhost','::1'])
+is_local = args.force_local or (args.server in ['127.0.0.1','localhost','::1']) or args.unixsocket
 
 # only check RSS
 check_fields = ["warn_threshold", "critical_threshold"]
@@ -62,8 +63,10 @@ for option in check_fields:
 try:
   if args.password is not None:
     redis_connection = redis.Redis(host=args.server, port=int(args.port), password=args.password, socket_timeout=args.timeout, ssl=args.ssl)
+  elif args.unixsocket is not None:
+    redis_connection = redis.Redis(socket_timeout=args.timeout, ssl=args.ssl, unix_socket_path=args.unixsocket)
   else:
-    redis_connection = redis.Redis(host=args.server, port=int(args.port), socket_timeout=args.timeout, ssl=args.ssl)
+    redis_connection = redis.Redis(host=args.server, port=int(args.port), socket_timeout=args.timeout, ssl=args.ssl, unix_socket_path=args.unixsocket)
   redis_info = redis_connection.info()
 except (socket.error, redis.exceptions.ConnectionError, redis.exceptions.ResponseError), e:
   print "CRITICAL: Problem establishing connection to Redis server %s: %s " % (str(args.server), str(repr(e)))
@@ -126,3 +129,4 @@ else:
     )
 
 sys.exit(EXIT_NAGIOS_OK)
+
